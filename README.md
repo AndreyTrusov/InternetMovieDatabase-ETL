@@ -56,10 +56,17 @@ Dáta zo zdrojového datasetu (formát `.csv`) boli najprv nahraté do Snowflake
 
 
 ```sql
+-- Vytvorenie databázy
 CREATE DATABASE IMDb_DB;
+
+-- Vytvorenie schémy pre staging tabuľky
 CREATE SCHEMA IMDb_DB.staging;
+
 USE SCHEMA IMDb_DB.staging;
+
 CREATE OR REPLACE STAGE my_stage;
+
+-- Vytvorenie tabuľky names (staging)
 CREATE TABLE names_staging (
     id VARCHAR(10) PRIMARY KEY,
     name VARCHAR(100),
