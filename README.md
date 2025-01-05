@@ -27,7 +27,7 @@ Surové dáta sú usporiadané v relačnom modeli, ktorý je znázornený na **e
 </p>
 
 ---
-## **2 Dimenzionálny model**
+## **2. Dimenzionálny model**
 Dimenzionálny model
 Navrhnutý bol **hviezdicový model (star schema)**, pre efektívnu analýzu kde centrálny bod predstavuje faktová tabuľka **`fact_ratings`**, ktorá je prepojená s nasledujúcimi dimenziami:
 
@@ -46,6 +46,37 @@ Navrhnutý bol **hviezdicový model (star schema)**, pre efektívnu analýzu kde
 
 ---
 ## **3. ETL proces v Snowflake**
+ETL proces pozostával z troch hlavných fáz: `extrahovanie` (Extract), `transformácia` (Transform) a `načítanie` (Load). Tento proces bol implementovaný v Snowflake s cieľom pripraviť zdrojové dáta zo staging vrstvy do viacdimenzionálneho modelu vhodného na analýzu a vizualizáciu.
+
+---
+### **3.1 Extract (Extrahovanie dát)**
+Dáta zo zdrojového datasetu (formát `.csv`) boli najprv nahraté do Snowflake prostredníctvom interného stage úložiska s názvom `my_stage`. Stage v Snowflake slúži ako dočasné úložisko na import alebo export dát. Vytvorenie stage bolo zabezpečené príkazom:
+
+#### Príklad kódu:
+
+
+```sql
+CREATE DATABASE IMDb_DB;
+CREATE SCHEMA IMDb_DB.staging;
+USE SCHEMA IMDb_DB.staging;
+CREATE OR REPLACE STAGE my_stage;
+CREATE TABLE names_staging (
+    id VARCHAR(10) PRIMARY KEY,
+    name VARCHAR(100),
+    height INT,
+    date_of_birth DATE,
+    known_for_movies VARCHAR(100)
+);
+```
+Do stage boli následne nahraté súbory obsahujúce údaje o filmoch, režiséroch, hercoch, žánroch a hodnoteniach. Dáta boli importované do staging tabuliek pomocou príkazu COPY INTO. Pre každú tabuľku sa použil podobný príkaz:
+
+```sql
+COPY INTO movies_staging
+FROM @my_stage/movies.csv
+FILE_FORMAT = (TYPE = 'CSV' SKIP_HEADER = 1);
+```
+
+V prípade nekonzistentných záznamov bol použitý parameter `ON_ERROR = 'CONTINUE'`, ktorý zabezpečil pokračovanie procesu bez prerušenia pri chybách.
 
 
 
