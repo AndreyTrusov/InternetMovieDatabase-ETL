@@ -50,7 +50,7 @@ ETL proces pozostával z troch hlavných fáz: `extrahovanie` (Extract), `transf
 
 ---
 ### **3.1 Extract (Extrahovanie dát)**
-Dáta zo zdrojového datasetu (formát `.csv`) boli najprv nahraté do Snowflake prostredníctvom interného stage úložiska s názvom `my_stage`. Stage v Snowflake slúži ako dočasné úložisko na import alebo export dát. Vytvorenie stage bolo zabezpečené príkazom:
+Dáta zo zdrojového datasetu boli vyformotovane pomocou phpMyAdmin do formatu `.csv`, potom boli nahraté do Snowflake prostredníctvom interného stage úložiska s názvom `my_stage`. Stage v Snowflake slúži ako dočasné úložisko na import alebo export dát. Vytvorenie stage bolo zabezpečené príkazom:
 
 #### Príklad kódu:
 
@@ -74,6 +74,11 @@ CREATE TABLE names_staging (
     date_of_birth DATE,
     known_for_movies VARCHAR(100)
 );
+
+-- Kopírovanie do staging databázy
+COPY INTO movie_staging
+FROM @my_stage/movie.csv
+FILE_FORMAT = (TYPE = 'CSV' FIELD_OPTIONALLY_ENCLOSED_BY = '"' SKIP_HEADER = 1);
 ```
 Do stage boli následne nahraté súbory obsahujúce údaje o filmoch, režiséroch, hercoch, žánroch a hodnoteniach. Dáta boli importované do staging tabuliek pomocou príkazu COPY INTO. Pre každú tabuľku sa použil podobný príkaz:
 
