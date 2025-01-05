@@ -39,7 +39,7 @@ Navrhnutý bol **hviezdicový model (star schema)**, pre efektívnu analýzu kde
 
 Štruktúra hviezdicového modelu je znázornená na diagrame nižšie. Diagram ukazuje prepojenia medzi faktovou tabuľkou a dimenziami, čo zjednodušuje pochopenie a implementáciu modelu.
 <p align="center">
-  <img src="[https://github.com/JKabathova/AmazonBooks-ETL/blob/master/star_schema.png](https://github.com/user-attachments/assets/310c2379-f491-4770-a987-9c5035bf622f)" alt="Star Schema">
+  <img src="https://github.com/user-attachments/assets/310c2379-f491-4770-a987-9c5035bf622f" alt="Star Schema">
   <br>
   <em>Obrázok 2 Schéma hviezdy pre Internet Movie Database</em>
 </p>
