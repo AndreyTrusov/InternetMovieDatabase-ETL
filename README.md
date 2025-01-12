@@ -29,17 +29,18 @@ Surové dáta sú usporiadané v relačnom modeli, ktorý je znázornený na **e
 ---
 ## **2. Dimenzionálny model**
 Dimenzionálny model
-Navrhnutý bol **hviezdicový model (star schema)**, pre efektívnu analýzu kde centrálny bod predstavuje faktová tabuľka **`fact_ratings`**, ktorá je prepojená s nasledujúcimi dimenziami:
+Navrhnutý bol **hviezdicový model (star schema)**, pre efektívnu analýzu kde centrálny bod predstavuje faktová tabuľka **`fact_movies`**, ktorá je prepojená s nasledujúcimi dimenziami:
 
-- **`dim_movies`**: Obsahuje podrobné informácie o filmoch (názov, rok vydania, dĺžka, krajina pôvodu, príjmy, produkčná spoločnosť, jazyky).
-- **`dim_directors`**: Obsahuje údaje o režiséroch filmov, vrátane ich mena, roku narodenia a výšky.
-- **`dim_roles`**: Obsahuje informácie o hercoch a ich úlohách, vrátane mena, roku narodenia a výšky.
+- **`dim_time`**: Obsahuje časové údaje o dátume vydania filmu (deň, mesiac, rok) vrátane numerického identifikátora času.
+- **`dim_movie`**: Obsahuje podrobné informácie o filmoch (názov, dĺžka, jazyky, produkčná spoločnosť).
+- **`dim_person`**: Obsahuje údaje o osobách (hercoch a režiséroch) vrátane ich mena, výšky, dátumu narodenia a známych filmov.
 - **`dim_genre`**: Zahrňuje informácie o žánrovom zaradení filmov.
-- **`dim_date`**: Obsahuje časové údaje (deň, mesiac, rok) vrátane textového aj číselného formátu.
+- **`dim_location`**: Obsahuje geografické údaje o krajinách, kde boli filmy produkované.
 
 Štruktúra hviezdicového modelu je znázornená na diagrame nižšie. Diagram ukazuje prepojenia medzi faktovou tabuľkou a dimenziami, čo zjednodušuje pochopenie a implementáciu modelu.
+
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/310c2379-f491-4770-a987-9c5035bf622f" alt="Star Schema">
+  <img src="https://github.com/user-attachments/assets/55fc0f61-1a83-40ee-81d6-680cbaad2083" alt="Star Schema">
   <br>
   <em>Obrázok 2 Schéma hviezdy pre Internet Movie Database</em>
 </p>
@@ -220,6 +221,25 @@ SELECT
 FROM movie_staging ms;
 ```
 
+---
+### **3.3 Load (Načítanie dát)**
+Po úspešnom vytvorení dimenzií pre filmy, roly, režisérov a ďalšie atribúty boli dáta nahraté do finálnej štruktúry. Na záver boli staging tabuľky odstránené, aby sa optimalizovalo využitie úložiska. Tento krok je kľúčový pre udržanie prehľadnosti a efektivity databázového prostredia:
+
+```sql
+DROP TABLE IF EXISTS role_mapping_staging;
+DROP TABLE IF EXISTS director_mapping_staging;
+DROP TABLE IF EXISTS genre_staging;
+DROP TABLE IF EXISTS movie_staging;
+DROP TABLE IF EXISTS names_staging;
+DROP TABLE IF EXISTS ratings_staging;
+```
+
+Proces ETL Snowflake umožnil spracovanie neusporiadanych údajov z rôznych zdrojov do multidimenzionálneho modelu hviezdy. Tento proces zahŕňal čistenie, transformáciu a obohatenie informácií o filmoch, hercoch, režiséroch a ďalších dôležitých aspektoch. Výsledný dátový model umožňuje podrobnú analýzu preferencií divákov, hodnotenia filmov a ďalších metrík a slúži ako základ pre vizualizácie a správy, ktoré sú neoceniteľné pre manažérov a analytikov filmového priemyslu.
+
+---
+## **4 Vizualizácia dát**
+
+Dashboard obsahuje `5 vizualizácií`, ktoré poskytujú základný prehľad o kľúčových metrikách a trendoch týkajúcich sa filmov, používateľov a ich hodnotení. Tieto vizualizácie odpovedajú na dôležité otázky a umožňujú lepšie pochopiť správanie používateľov, ich preferencie a interakcie s obsahom. Každá vizualizácia je navrhnutá tak, aby poskytovala hodnotné informácie pre analýzu a rozhodovanie.
 
 
 
