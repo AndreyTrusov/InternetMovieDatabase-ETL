@@ -276,6 +276,71 @@ LIMIT 10;
 <img width="836" alt="image" src="https://github.com/user-attachments/assets/75ca2267-79a9-4af0-9742-c708c9b770d4" />
 
 ---
+### **Graf 2: Najproduktívnejší herci/režiséri podľa počtu filmov**
+
+```sql
+SELECT 
+    p.name,
+    f.role_category,
+    COUNT(DISTINCT f.movie_id) as number_of_movies,
+    AVG(f.avg_rating) as average_movie_rating
+FROM fact_movies f
+JOIN dim_person p ON f.person_id = p.person_id
+GROUP BY p.name, f.role_category
+ORDER BY number_of_movies DESC
+LIMIT 10;
+```
+
+<img width="836" alt="image" src="https://github.com/user-attachments/assets/c7c50a8f-2041-4c73-94de-f27c47938fb0" />
+
+---
+### **Graf 3: Najproduktívnejší herci/režiséri podľa počtu filmov**
+
+```sql
+SELECT 
+    g.genre_name,
+    COUNT(DISTINCT f.movie_id) as number_of_movies,
+    AVG(f.avg_rating) as average_rating,
+    SUM(f.total_votes) as total_votes
+FROM fact_movies f
+JOIN dim_genre g ON f.genre_id = g.genre_id
+GROUP BY g.genre_name
+ORDER BY average_rating DESC
+LIMIT 10;
+```
+
+<img width="849" alt="image" src="https://github.com/user-attachments/assets/a3ba6d49-31a6-416b-ad95-e557f4f561ee" />
+
+---
+### **Graf 4: Distribúcia hodnotenia**
+
+```sql
+SELECT 
+    FLOOR(avg_rating) as rating_bucket,
+    COUNT(*) as number_of_movies
+FROM fact_movies
+WHERE avg_rating IS NOT NULL
+GROUP BY FLOOR(avg_rating)
+ORDER BY rating_bucket;
+```
+
+<img width="830" alt="image" src="https://github.com/user-attachments/assets/71452587-e1ef-4750-891c-9c7414565403" />
+
+---
+### **Graf 5: Distribúcia trvania filmu**
+
+```sql
+SELECT 
+    FLOOR(duration/30) * 30 as duration_bucket,
+    COUNT(*) as number_of_movies
+FROM dim_movie
+WHERE duration IS NOT NULL
+GROUP BY FLOOR(duration/30)
+ORDER BY duration_bucket;
+```
+
+<img width="830" alt="image" src="https://github.com/user-attachments/assets/d41bb232-e79f-4c99-b84f-49fba694b878" />
+
 
 
 
