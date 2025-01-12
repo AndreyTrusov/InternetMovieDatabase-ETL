@@ -79,6 +79,7 @@ CREATE TABLE names_staging (
 COPY INTO movie_staging
 FROM @my_stage/movie.csv
 FILE_FORMAT = (TYPE = 'CSV' FIELD_OPTIONALLY_ENCLOSED_BY = '"' SKIP_HEADER = 1);
+
 ```
 Do stage boli následne nahraté súbory obsahujúce údaje o filmoch, režiséroch, hercoch, žánroch a hodnoteniach. Dáta boli importované do staging tabuliek pomocou príkazu COPY INTO. Pre každú tabuľku sa použil podobný príkaz:
 
@@ -90,10 +91,134 @@ FILE_FORMAT = (TYPE = 'CSV' SKIP_HEADER = 1);
 
 V prípade nekonzistentných záznamov bol použitý parameter `ON_ERROR = 'CONTINUE'`, ktorý zabezpečil pokračovanie procesu bez prerušenia pri chybách.
 
+---
+### **3.2 Transfor (Transformácia dát pre filmové dáta)**
 
+V tejto fáze sa údaje z tabuliek etapy čistia, transformujú a obohacujú, aby sa podporila efektívna analýza. Hlavným cieľom je pripraviť tabuľky dimenzií a tabuľku faktov, ktoré umožňujú podrobnú analýzu údajov týkajúcich sa filmu.
 
+#### Dimensional Tables
 
+`dim_roles`: Táto dimenzia obsahuje informácie o filmových rolách vrátane mena herca alebo herečky, ich roku narodenia (získaného z dátumu narodenia) a výšky. Pozoruhodná transformácia zahŕňa spracovanie chýbajúcich dátumov narodenia alebo výšky. Roliam sa priradia jedinečné ID pomocou funkcie ROW_NUMBER(), usporiadané podľa movie_id a name_id z tabuľky role_mapping_staging. Tým sa zabezpečí, že každá rola je spojená s konkrétnymi filmami a hercami.
 
+```sql
+CREATE OR REPLACE TABLE dim_roles AS
+SELECT 
+    ROW_NUMBER() OVER (ORDER BY rm.movie_id, rm.name_id) AS role_id,
+    n.name,
+    CASE 
+        WHEN n.date_of_birth = 'NULL' OR n.date_of_birth IS NULL THEN NULL
+        ELSE EXTRACT(YEAR FROM TO_DATE(n.date_of_birth, 'YYYY-MM-DD'))
+    END AS birth_year,
+    CASE 
+        WHEN n.height = 'NULL' THEN NULL
+        ELSE CAST(n.height AS INT)
+    END AS height
+FROM role_mapping_staging rm
+JOIN names_staging n ON rm.name_id = n.id;
+```
+
+`dim_directors`: Podobne ako dim_roles, táto dimenzia obsahuje údaje o riaditeľoch, pričom spája ich mená, roky narodenia a výšky s jedinečnými ID priradenými prostredníctvom funkcie ROW_NUMBER(). 
+
+```sql
+CREATE OR REPLACE TABLE dim_directors AS
+SELECT 
+    ROW_NUMBER() OVER (ORDER BY dm.movie_id, dm.name_id) AS director_id,
+    n.name,
+    CASE 
+        WHEN n.date_of_birth = 'NULL' OR n.date_of_birth IS NULL THEN NULL
+        ELSE EXTRACT(YEAR FROM TO_DATE(n.date_of_birth, 'YYYY-MM-DD'))
+    END AS birth_year,
+    CASE 
+        WHEN n.height = 'NULL' THEN NULL
+        ELSE CAST(n.height AS INT)
+    END AS height
+FROM director_mapping_staging dm
+JOIN names_staging n ON dm.name_id = n.id;
+```
+
+`dim_genre`: Táto dimenzia obsahuje informácie o filmových žánroch. Každému žánru je priradené jedinečné ID. Táto transformácia je jednoduchšia, zoskupuje žánre podľa ich názvu a používa funkciu ROW_NUMBER() na jedinečnú identifikáciu.
+
+```sql
+CREATE OR REPLACE TABLE dim_genre AS
+SELECT 
+    ROW_NUMBER() OVER (ORDER BY gs.genre) AS genre_id,
+    gs.genre AS genre_name
+FROM genre_staging gs
+GROUP BY gs.genre;
+```
+
+`dim_date`: Táto dimenzia poskytuje podrobné informácie týkajúce sa dátumu pre hodnotenia filmov vrátane dňa, týždňa, mesiaca a roka. Transformuje časovú značku na podrobnejšie zložky, ako sú názvy dní, dní v týždni a mesiacov v číselnom aj reťazcovom formáte. 
+
+```sql
+CREATE OR REPLACE TABLE dim_date AS
+SELECT
+    ROW_NUMBER() OVER (ORDER BY CAST(timestamp AS DATE)) AS date_id,
+    CAST(timestamp AS DATE) AS date,                    
+    DATE_PART(day, timestamp) AS day,                   
+    DATE_PART(dow, timestamp) + 1 AS dayOfWeek,        
+    CASE DATE_PART(dow, timestamp) + 1
+        WHEN 1 THEN 'Pondelok'
+        WHEN 2 THEN 'Utorok'
+        WHEN 3 THEN 'Streda'
+        WHEN 4 THEN 'Štvrtok'
+        WHEN 5 THEN 'Piatok'
+        WHEN 6 THEN 'Sobota'
+        WHEN 7 THEN 'Nedeľa'
+    END AS dayOfWeekAsString,
+    DATE_PART(month, timestamp) AS month,              
+    CASE DATE_PART(month, timestamp)
+        WHEN 1 THEN 'Január'
+        WHEN 2 THEN 'Február'
+        WHEN 3 THEN 'Marec'
+        WHEN 4 THEN 'Apríl'
+        WHEN 5 THEN 'Máj'
+        WHEN 6 THEN 'Jún'
+        WHEN 7 THEN 'Júl'
+        WHEN 8 THEN 'August'
+        WHEN 9 THEN 'September'
+        WHEN 10 THEN 'Október'
+        WHEN 11 THEN 'November'
+        WHEN 12 THEN 'December'
+    END AS monthAsString,
+    DATE_PART(year, timestamp) AS year,                
+    DATE_PART(week, timestamp) AS week,               
+    DATE_PART(quarter, timestamp) AS quarter           
+FROM RATINGS_STAGING
+GROUP BY CAST(timestamp AS DATE), 
+         DATE_PART(day, timestamp), 
+         DATE_PART(dow, timestamp), 
+         DATE_PART(month, timestamp), 
+         DATE_PART(year, timestamp), 
+         DATE_PART(week, timestamp), 
+         DATE_PART(quarter, timestamp);
+```
+
+`dim_movies`: Táto tabuľka dimenzie obsahuje základné informácie o filmoch, ako je ich názov, rok vydania, trvanie, krajina, jazyk, celosvetový hrubý príjem a produkčná spoločnosť.
+
+```sql
+CREATE TABLE dim_movies (
+    movie_id VARCHAR(20) PRIMARY KEY,
+    title VARCHAR(200),
+    release_year NUMBER(38,0),
+    duration NUMBER(38,0),
+    country VARCHAR(250),
+    language VARCHAR(200),
+    worldwide_gross_income VARCHAR(30),
+    production_company VARCHAR(200)
+);
+
+INSERT INTO dim_movies
+SELECT 
+    ms.id AS movie_id,
+    ms.title AS title,
+    ms.year AS release_year,
+    ms.duration AS duration,
+    ms.country AS country,
+    ms.languages AS language,
+    ms.worlwide_gross_income AS worldwide_gross_income,
+    ms.production_company AS production_company
+FROM movie_staging ms;
+```
 
 
 
