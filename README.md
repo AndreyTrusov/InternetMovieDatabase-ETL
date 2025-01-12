@@ -67,27 +67,26 @@ USE SCHEMA IMDb_DB.staging;
 
 CREATE OR REPLACE STAGE my_stage;
 
--- Vytvorenie tabuľky names (staging)
-CREATE TABLE names_staging (
+-- Vytvorenie tabuľky movie (staging)
+CREATE TABLE movie_staging (
     id VARCHAR(10) PRIMARY KEY,
-    name VARCHAR(100),
-    height INT,
-    date_of_birth DATE,
-    known_for_movies VARCHAR(100)
+    title VARCHAR(200),
+    year INT,
+    date_published DATE,
+    duration INT,
+    country VARCHAR(250),
+    worlwide_gross_income VARCHAR(30),
+    languages VARCHAR(200),
+    production_company VARCHAR(200)
 );
-
--- Kopírovanie do staging databázy
-COPY INTO movie_staging
-FROM @my_stage/movie.csv
-FILE_FORMAT = (TYPE = 'CSV' FIELD_OPTIONALLY_ENCLOSED_BY = '"' SKIP_HEADER = 1);
-
 ```
 Do stage boli následne nahraté súbory obsahujúce údaje o filmoch, režiséroch, hercoch, žánroch a hodnoteniach. Dáta boli importované do staging tabuliek pomocou príkazu COPY INTO. Pre každú tabuľku sa použil podobný príkaz:
 
 ```sql
-COPY INTO movies_staging
-FROM @my_stage/movies.csv
-FILE_FORMAT = (TYPE = 'CSV' SKIP_HEADER = 1);
+-- Kopírovanie do staging databázy
+COPY INTO movie_staging
+FROM @my_stage/movie.csv
+FILE_FORMAT = (TYPE = 'CSV' FIELD_OPTIONALLY_ENCLOSED_BY = '"' SKIP_HEADER = 1);
 ```
 
 V prípade nekonzistentných záznamov bol použitý parameter `ON_ERROR = 'CONTINUE'`, ktorý zabezpečil pokračovanie procesu bez prerušenia pri chybách.
@@ -99,147 +98,184 @@ V tejto fáze sa údaje z tabuliek etapy čistia, transformujú a obohacujú, ab
 
 #### Dimensional Tables
 
-`dim_roles`: Táto dimenzia obsahuje informácie o filmových rolách vrátane mena herca alebo herečky, ich roku narodenia (získaného z dátumu narodenia) a výšky. Pozoruhodná transformácia zahŕňa spracovanie chýbajúcich dátumov narodenia alebo výšky. Roliam sa priradia jedinečné ID pomocou funkcie ROW_NUMBER(), usporiadané podľa movie_id a name_id z tabuľky role_mapping_staging. Tým sa zabezpečí, že každá rola je spojená s konkrétnymi filmami a hercami.
+`dim_time`: Táto tabuľka dimenzie obsahuje informácie o čase, konkrétne dátum, rok, mesiac a deň. Slúži na analýzu časových aspektov v dátach, ako sú ročné, mesačné alebo denný vývoj.
 
 ```sql
-CREATE OR REPLACE TABLE dim_roles AS
+CREATE TABLE dim_time (
+    time_id INT PRIMARY KEY,
+    full_date DATE,
+    year INT,
+    month INT,
+    day INT
+);
+
+INSERT INTO dim_time (time_id, full_date, year, month, day)
 SELECT 
-    ROW_NUMBER() OVER (ORDER BY rm.movie_id, rm.name_id) AS role_id,
-    n.name,
-    CASE 
-        WHEN n.date_of_birth = 'NULL' OR n.date_of_birth IS NULL THEN NULL
-        ELSE EXTRACT(YEAR FROM TO_DATE(n.date_of_birth, 'YYYY-MM-DD'))
-    END AS birth_year,
-    CASE 
-        WHEN n.height = 'NULL' THEN NULL
-        ELSE CAST(n.height AS INT)
-    END AS height
-FROM role_mapping_staging rm
-JOIN names_staging n ON rm.name_id = n.id;
+    DISTINCT
+    CAST(TO_CHAR(date_published, 'YYYYMMDD') AS INT) as time_id,
+    date_published as full_date,
+    EXTRACT(YEAR FROM date_published) as year,
+    EXTRACT(MONTH FROM date_published) as month,
+    EXTRACT(DAY FROM date_published) as day
+FROM movie_staging
+WHERE date_published IS NOT NULL;
 ```
 
-`dim_directors`: Podobne ako dim_roles, táto dimenzia obsahuje údaje o riaditeľoch, pričom spája ich mená, roky narodenia a výšky s jedinečnými ID priradenými prostredníctvom funkcie ROW_NUMBER(). 
+`dim_movie`: Táto tabuľka dimenzie uchováva informácie o filmoch, ako je názov, dĺžka trvania, jazyky, produkčná spoločnosť a ďalšie detaily, ktoré pomáhajú kategorizovať filmy a spravovať súvisiacie dáta.
 
 ```sql
-CREATE OR REPLACE TABLE dim_directors AS
-SELECT 
-    ROW_NUMBER() OVER (ORDER BY dm.movie_id, dm.name_id) AS director_id,
-    n.name,
-    CASE 
-        WHEN n.date_of_birth = 'NULL' OR n.date_of_birth IS NULL THEN NULL
-        ELSE EXTRACT(YEAR FROM TO_DATE(n.date_of_birth, 'YYYY-MM-DD'))
-    END AS birth_year,
-    CASE 
-        WHEN n.height = 'NULL' THEN NULL
-        ELSE CAST(n.height AS INT)
-    END AS height
-FROM director_mapping_staging dm
-JOIN names_staging n ON dm.name_id = n.id;
-```
-
-`dim_genre`: Táto dimenzia obsahuje informácie o filmových žánroch. Každému žánru je priradené jedinečné ID. Táto transformácia je jednoduchšia, zoskupuje žánre podľa ich názvu a používa funkciu ROW_NUMBER() na jedinečnú identifikáciu.
-
-```sql
-CREATE OR REPLACE TABLE dim_genre AS
-SELECT 
-    ROW_NUMBER() OVER (ORDER BY gs.genre) AS genre_id,
-    gs.genre AS genre_name
-FROM genre_staging gs
-GROUP BY gs.genre;
-```
-
-`dim_date`: Táto dimenzia poskytuje podrobné informácie týkajúce sa dátumu pre hodnotenia filmov vrátane dňa, týždňa, mesiaca a roka. Transformuje časovú značku na podrobnejšie zložky, ako sú názvy dní, dní v týždni a mesiacov v číselnom aj reťazcovom formáte. 
-
-```sql
-CREATE OR REPLACE TABLE dim_date AS
-SELECT
-    ROW_NUMBER() OVER (ORDER BY CAST(timestamp AS DATE)) AS date_id,
-    CAST(timestamp AS DATE) AS date,                    
-    DATE_PART(day, timestamp) AS day,                   
-    DATE_PART(dow, timestamp) + 1 AS dayOfWeek,        
-    CASE DATE_PART(dow, timestamp) + 1
-        WHEN 1 THEN 'Pondelok'
-        WHEN 2 THEN 'Utorok'
-        WHEN 3 THEN 'Streda'
-        WHEN 4 THEN 'Štvrtok'
-        WHEN 5 THEN 'Piatok'
-        WHEN 6 THEN 'Sobota'
-        WHEN 7 THEN 'Nedeľa'
-    END AS dayOfWeekAsString,
-    DATE_PART(month, timestamp) AS month,              
-    CASE DATE_PART(month, timestamp)
-        WHEN 1 THEN 'Január'
-        WHEN 2 THEN 'Február'
-        WHEN 3 THEN 'Marec'
-        WHEN 4 THEN 'Apríl'
-        WHEN 5 THEN 'Máj'
-        WHEN 6 THEN 'Jún'
-        WHEN 7 THEN 'Júl'
-        WHEN 8 THEN 'August'
-        WHEN 9 THEN 'September'
-        WHEN 10 THEN 'Október'
-        WHEN 11 THEN 'November'
-        WHEN 12 THEN 'December'
-    END AS monthAsString,
-    DATE_PART(year, timestamp) AS year,                
-    DATE_PART(week, timestamp) AS week,               
-    DATE_PART(quarter, timestamp) AS quarter           
-FROM RATINGS_STAGING
-GROUP BY CAST(timestamp AS DATE), 
-         DATE_PART(day, timestamp), 
-         DATE_PART(dow, timestamp), 
-         DATE_PART(month, timestamp), 
-         DATE_PART(year, timestamp), 
-         DATE_PART(week, timestamp), 
-         DATE_PART(quarter, timestamp);
-```
-
-`dim_movies`: Táto tabuľka dimenzie obsahuje základné informácie o filmoch, ako je ich názov, rok vydania, trvanie, krajina, jazyk, celosvetový hrubý príjem a produkčná spoločnosť.
-
-```sql
-CREATE TABLE dim_movies (
-    movie_id VARCHAR(20) PRIMARY KEY,
+CREATE TABLE dim_movie (
+    movie_id VARCHAR(10) PRIMARY KEY,
     title VARCHAR(200),
-    release_year NUMBER(38,0),
-    duration NUMBER(38,0),
-    country VARCHAR(250),
-    language VARCHAR(200),
-    worldwide_gross_income VARCHAR(30),
+    duration INT,
+    languages VARCHAR(200),
     production_company VARCHAR(200)
 );
 
-INSERT INTO dim_movies
+INSERT INTO dim_movie (movie_id, title, duration, languages, production_company)
 SELECT 
-    ms.id AS movie_id,
-    ms.title AS title,
-    ms.year AS release_year,
-    ms.duration AS duration,
-    ms.country AS country,
-    ms.languages AS language,
-    ms.worlwide_gross_income AS worldwide_gross_income,
-    ms.production_company AS production_company
-FROM movie_staging ms;
+    id,
+    title,
+    duration,
+    languages,
+    production_company
+FROM movie_staging;
+```
+
+`dim_person`: Táto tabuľka obsahuje údaje o osobách, ktoré sa podieľajú na tvorbe filmov, ako je meno, výška, dátum narodenia a známe filmy, v ktorých vystupovali. Pomáha spájať hercov, režisérov a iných tvorcov s filmami.
+
+```sql
+CREATE TABLE dim_person (
+    person_id VARCHAR(10) PRIMARY KEY,
+    name VARCHAR(100),
+    height INT,
+    date_of_birth DATE,
+    known_for_movies VARCHAR(100)
+);
+
+INSERT INTO dim_person (person_id, name, height, date_of_birth, known_for_movies)
+SELECT 
+    id,
+    name,
+    COALESCE(height, 0),
+    date_of_birth,
+    known_for_movies
+FROM names_staging;
+```
+
+`dim_genre`: Táto tabuľka dimenzie obsahuje zoznam filmových žánrov. Každý žáner má svoj unikátny názov, čo umožňuje efektívne kategorizovať filmy podľa ich žánrového zaradenia.
+
+```sql
+CREATE TABLE dim_genre (
+    genre_id INT IDENTITY(1,1) PRIMARY KEY,
+    genre_name VARCHAR(20) UNIQUE
+);
+
+INSERT INTO dim_genre (genre_name)
+SELECT DISTINCT genre
+FROM genre_staging;
+```
+
+`dim_location`: Táto tabuľka dimenzie obsahuje informácie o lokalitách, konkrétne krajiny, ktoré sú spojené s filmami alebo ich natáčaním. Každá krajina je uvedená ako unikátny záznam v databáze, čo umožňuje sledovať geografické aspekty filmov.
+
+```sql
+CREATE TABLE dim_location (
+    location_id INT IDENTITY(1,1) PRIMARY KEY,
+    country VARCHAR(250) UNIQUE
+);
+
+INSERT INTO dim_location (country)
+SELECT DISTINCT country 
+FROM movie_staging 
+WHERE country IS NOT NULL;
+```
+
+`fact_movies`: Táto tabuľka faktov obsahuje kombinované informácie o filmoch, osobách, žánroch, časoch, lokalitách a ďalších metrikách. Skladá sa z kľúčov z rôznych dimenzií (filmy, osoby, žánre, čas a lokalita)
+
+```sql
+CREATE TABLE fact_movies (
+    movie_id VARCHAR(10),
+    person_id VARCHAR(10),
+    genre_id INT,
+    time_id INT,
+    location_id INT,
+    role_category VARCHAR(10),
+    avg_rating DECIMAL(3,1),
+    total_votes INT,
+    median_rating INT,
+    worldwide_gross_income VARCHAR(30),
+    PRIMARY KEY (movie_id, person_id, genre_id),
+    FOREIGN KEY (movie_id) REFERENCES dim_movie(movie_id),
+    FOREIGN KEY (person_id) REFERENCES dim_person(person_id),
+    FOREIGN KEY (genre_id) REFERENCES dim_genre(genre_id),
+    FOREIGN KEY (time_id) REFERENCES dim_time(time_id),
+    FOREIGN KEY (location_id) REFERENCES dim_location(location_id)
+);
+
+INSERT INTO fact_movies (
+    movie_id, person_id, genre_id, time_id, location_id,
+    role_category, avg_rating, total_votes, median_rating, worldwide_gross_income
+)
+SELECT DISTINCT
+    m.id,
+    COALESCE(d.name_id, r.name_id) as person_id,
+    g.genre_id,
+    TO_NUMBER(TO_CHAR(m.date_published, 'YYYYMMDD')) as time_id,
+    l.location_id,
+    r.category,
+    rt.avg_rating,
+    rt.total_votes,
+    rt.median_rating,
+    m.worlwide_gross_income
+FROM movie_staging m
+INNER JOIN director_mapping_staging d ON m.id = d.movie_id
+INNER JOIN role_mapping_staging r ON m.id = r.movie_id
+INNER JOIN genre_staging gs ON m.id = gs.movie_id
+INNER JOIN dim_genre g ON gs.genre = g.genre_name
+LEFT JOIN dim_location l ON m.country = l.country
+LEFT JOIN ratings_staging rt ON m.id = rt.movie_id
+WHERE m.id IS NOT NULL 
+  AND COALESCE(d.name_id, r.name_id) IS NOT NULL 
+  AND g.genre_id IS NOT NULL;
 ```
 
 ---
 ### **3.3 Load (Načítanie dát)**
-Po úspešnom vytvorení dimenzií pre filmy, roly, režisérov a ďalšie atribúty boli dáta nahraté do finálnej štruktúry. Na záver boli staging tabuľky odstránené, aby sa optimalizovalo využitie úložiska. Tento krok je kľúčový pre udržanie prehľadnosti a efektivity databázového prostredia:
+Po úspešnom vytvorení dimenzií boli dáta nahraté do finálnej štruktúry. Na záver boli staging tabuľky odstránené, aby sa optimalizovalo využitie úložiska. Tento krok je kľúčový pre udržanie prehľadnosti a efektivity databázového prostredia:
 
 ```sql
-DROP TABLE IF EXISTS role_mapping_staging;
-DROP TABLE IF EXISTS director_mapping_staging;
-DROP TABLE IF EXISTS genre_staging;
 DROP TABLE IF EXISTS movie_staging;
 DROP TABLE IF EXISTS names_staging;
+DROP TABLE IF EXISTS director_mapping_staging;
+DROP TABLE IF EXISTS role_mapping_staging;
 DROP TABLE IF EXISTS ratings_staging;
+DROP TABLE IF EXISTS genre_staging;
 ```
 
-Proces ETL Snowflake umožnil spracovanie neusporiadanych údajov z rôznych zdrojov do multidimenzionálneho modelu hviezdy. Tento proces zahŕňal čistenie, transformáciu a obohatenie informácií o filmoch, hercoch, režiséroch a ďalších dôležitých aspektoch. Výsledný dátový model umožňuje podrobnú analýzu preferencií divákov, hodnotenia filmov a ďalších metrík a slúži ako základ pre vizualizácie a správy, ktoré sú neoceniteľné pre manažérov a analytikov filmového priemyslu.
+Proces ETL Snowflake umožnil spracovanie neusporiadanych údajov z rôznych zdrojov do multidimenzionálneho modelu hviezdy. Tento proces zahŕňal čistenie, transformáciu a obohatenie informácií o filmoch, hercoch a ďalších dôležitých aspektoch. Výsledný dátový model umožňuje podrobnú analýzu preferencií divákov, hodnotenia filmov a ďalších metrík a slúži ako základ pre vizualizácie a správy, ktoré sú neoceniteľné pre manažérov a analytikov filmového priemyslu.
 
 ---
 ## **4 Vizualizácia dát**
 
 Dashboard obsahuje `5 vizualizácií`, ktoré poskytujú základný prehľad o kľúčových metrikách a trendoch týkajúcich sa filmov, používateľov a ich hodnotení. Tieto vizualizácie odpovedajú na dôležité otázky a umožňujú lepšie pochopiť správanie používateľov, ich preferencie a interakcie s obsahom. Každá vizualizácia je navrhnutá tak, aby poskytovala hodnotné informácie pre analýzu a rozhodovanie.
+
+### **Graf 1: 10 najlepších filmov podľa priemerného hodnotenia a celkového počtu hlasov**
+
+```sql
+SELECT 
+    m.title,
+    AVG(f.avg_rating) as average_rating,
+    SUM(f.total_votes) as total_votes
+FROM fact_movies f
+JOIN dim_movie m ON f.movie_id = m.movie_id
+GROUP BY m.title
+ORDER BY average_rating DESC, total_votes DESC
+LIMIT 10;
+```
+
+<img width="836" alt="image" src="https://github.com/user-attachments/assets/75ca2267-79a9-4af0-9742-c708c9b770d4" />
+
+---
 
 
 
