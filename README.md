@@ -375,7 +375,7 @@ LIMIT 10;
 ![image](https://github.com/user-attachments/assets/f37524ac-3507-46d2-8fc3-ade855e7f84c)
 
 ---
-### **Graf 7: Sezónna analýza výkonnosti **
+### **Graf 7: Sezónna analýza výkonnosti**
 
 Kedy je najlepší čas na vydávanie filmov? / Optimalizuje plánovanie premiér pre dosiahnutie maximálnych príjmov
 
@@ -391,7 +391,7 @@ GROUP BY t.month;
 ![image](https://github.com/user-attachments/assets/94d17a20-7021-4029-a83d-3ea0d3ac6a68)
 
 ---
-### **Graf 8: Výkonnosť jazykového trhu **
+### **Graf 8: Výkonnosť jazykového trhu**
 
 Ktoré jazykové trhy sú najziskovejšie? / Riadi úsilie o expanziu na medzinárodné trhy a lokalizáciu
 
