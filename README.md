@@ -261,6 +261,8 @@ Dashboard obsahuje `5 vizualizácií`, ktoré poskytujú základný prehľad o k
 
 ### **Graf 1: 10 najlepších filmov podľa priemerného hodnotenia a celkového počtu hlasov**
 
+Ktoré filmy sú vysoko hodnotené a sledované? / Pomáha identifikovať najúspešnejšie filmy pre marketingové stratégie a stratégie získavania obsahu.
+
 ```sql
 SELECT 
     m.title,
@@ -277,6 +279,8 @@ LIMIT 10;
 
 ---
 ### **Graf 2: Najproduktívnejší herci/režiséri podľa počtu filmov**
+
+Kto sú naše najproduktívnejšie talenty a ako sa darí ich filmom? / Užitočné pri vyhľadávaní talentov a rozhodovaní o partnerstve.
 
 ```sql
 SELECT 
@@ -296,6 +300,8 @@ LIMIT 10;
 ---
 ### **Graf 3: Najproduktívnejší herci/režiséri podľa počtu filmov**
 
+Ktoré žánre sú u divákov najúspešnejšie? / Rozhodnutia o investíciách do akvizície a produkcie obsahu.
+
 ```sql
 SELECT 
     g.genre_name,
@@ -312,7 +318,9 @@ LIMIT 10;
 <img width="849" alt="image" src="https://github.com/user-attachments/assets/a3ba6d49-31a6-416b-ad95-e557f4f561ee" />
 
 ---
-### **Graf 4: Distribúcia hodnotenia**
+### **Graf 4: Rozdelenie filmov v jednotlivých ratingových skupinách**
+
+Aká je naša typická úroveň kvality filmov? / Pomáha pochopiť štandardy kvality a určiť prahové hodnoty hodnotenia.
 
 ```sql
 SELECT 
@@ -327,7 +335,9 @@ ORDER BY rating_bucket;
 <img width="830" alt="image" src="https://github.com/user-attachments/assets/71452587-e1ef-4750-891c-9c7414565403" />
 
 ---
-### **Graf 5: Distribúcia trvania filmu**
+### **Graf 5: Distribúcia trvania filmu (30-minútové bloky)**
+
+Aké sú najčastejšie dĺžky filmov? / Pomáha optimalizovať dĺžku obsahu podľa preferencií publika
 
 ```sql
 SELECT 
@@ -340,6 +350,62 @@ ORDER BY duration_bucket;
 ```
 
 <img width="830" alt="image" src="https://github.com/user-attachments/assets/d41bb232-e79f-4c99-b84f-49fba694b878" />
+---
+### **Graf 6: Analýza návratnosti investícií podľa výrobnej spoločnosti**
+
+Ktoré výrobné spoločnosti prinášajú najlepšiu návratnosť investícií? / Pomáha identifikovať potenciálnych produkčných partnerov a investičné príležitosti.
+
+```sql
+SELECT 
+    m.production_company,
+    COUNT(DISTINCT f.movie_id) as movies_produced,
+    AVG(TRY_TO_DECIMAL(REGEXP_REPLACE(f.worldwide_gross_income, '[$,]', ''), 18, 2)) as avg_revenue,
+    AVG(f.avg_rating) as avg_rating,
+    AVG(f.total_votes) as avg_engagement
+FROM fact_movies f
+JOIN dim_movie m ON f.movie_id = m.movie_id
+WHERE m.production_company IS NOT NULL
+GROUP BY m.production_company
+HAVING COUNT(DISTINCT f.movie_id) >= 3
+ORDER BY avg_revenue DESC
+LIMIT 10;
+```
+
+![image](https://github.com/user-attachments/assets/f37524ac-3507-46d2-8fc3-ade855e7f84c)
+
+---
+### **Graf 7: Sezónna analýza výkonnosti **
+
+Kedy je najlepší čas na vydávanie filmov? / Optimalizuje plánovanie premiér pre dosiahnutie maximálnych príjmov
+
+```sql
+SELECT 
+    t.month,
+    COUNT(DISTINCT f.movie_id) as releases
+FROM fact_movies f
+JOIN dim_time t ON f.time_id = t.time_id
+GROUP BY t.month;
+```
+
+![image](https://github.com/user-attachments/assets/94d17a20-7021-4029-a83d-3ea0d3ac6a68)
+
+---
+### **Graf 8: Výkonnosť jazykového trhu **
+
+Ktoré jazykové trhy sú najziskovejšie? / Riadi úsilie o expanziu na medzinárodné trhy a lokalizáciu
+
+```sql
+SELECT 
+    m.languages,
+    COUNT(DISTINCT f.movie_id) as movie_count,
+FROM fact_movies f
+JOIN dim_movie m ON f.movie_id = m.movie_id
+WHERE m.languages IS NOT NULL
+GROUP BY m.languages;
+```
+
+![image](https://github.com/user-attachments/assets/bd0f1e69-8f26-49fd-9e15-c33edfc6aad0)
+
 
 
 
