@@ -262,7 +262,7 @@ The ETL Snowflake process **allowed** the processing of disordered **data from d
 ---
 ## **4 Data visualisation**
 
-The Dashboard includes **`7 visualizations`** that provide a basic overview of key metrics and trends related to movies, users and their ratings. These visualizations **answer important questions** and enable a better understanding of user behavior, preferences, and interactions with content. Each visualization is designed to provide valuable information for analysis and decision-making.
+The Dashboard includes **`8 visualizations`** that provide a basic overview of key metrics and trends related to movies, users and their ratings. These visualizations **answer important questions** and enable a better understanding of user behavior, preferences, and interactions with content. Each visualization is designed to provide valuable information for analysis and decision-making.
 
 ### **Graph 1: Top 10 films by average rating and total votes**
 
