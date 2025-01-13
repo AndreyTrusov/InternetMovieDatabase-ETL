@@ -350,6 +350,7 @@ ORDER BY duration_bucket;
 ```
 
 <img width="830" alt="image" src="https://github.com/user-attachments/assets/d41bb232-e79f-4c99-b84f-49fba694b878" />
+
 ---
 ### **Graf 6: Analýza návratnosti investícií podľa výrobnej spoločnosti**
 
