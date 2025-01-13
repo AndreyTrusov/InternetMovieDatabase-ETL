@@ -50,14 +50,15 @@ Navrhnutý bol **hviezdicový model (star schema)**, pre efektívnu analýzu kde
 
 ---
 ## **3. ETL proces v Snowflake**
+
 ETL proces pozostával z troch hlavných fáz: `extrahovanie` (Extract), `transformácia` (Transform) a `načítanie` (Load). Tento proces bol implementovaný v Snowflake s cieľom pripraviť zdrojové dáta zo staging vrstvy do viacdimenzionálneho modelu vhodného na analýzu a vizualizáciu.
 
 ---
 ### **3.1 Extract (Extrahovanie dát)**
+
 Dáta zo zdrojového datasetu boli vyformotovane pomocou phpMyAdmin do formatu `.csv`, potom boli nahraté do Snowflake prostredníctvom interného stage úložiska s názvom `my_stage`. Stage v Snowflake slúži ako dočasné úložisko na import alebo export dát. Vytvorenie stage bolo zabezpečené príkazom:
 
 #### Príklad kódu:
-
 
 ```sql
 -- Vytvorenie databázy
@@ -244,6 +245,7 @@ WHERE m.id IS NOT NULL
 
 ---
 ### **3.3 Load (Načítanie dát)**
+
 Po úspešnom vytvorení dimenzií boli dáta nahraté do finálnej štruktúry. Na záver boli staging tabuľky odstránené, aby sa optimalizovalo využitie úložiska. Tento krok je kľúčový pre udržanie prehľadnosti a efektivity databázového prostredia:
 
 ```sql
@@ -260,7 +262,7 @@ Proces ETL Snowflake umožnil spracovanie neusporiadanych údajov z rôznych zdr
 ---
 ## **4 Vizualizácia dát**
 
-Dashboard obsahuje `5 vizualizácií`, ktoré poskytujú základný prehľad o kľúčových metrikách a trendoch týkajúcich sa filmov, používateľov a ich hodnotení. Tieto vizualizácie odpovedajú na dôležité otázky a umožňujú lepšie pochopiť správanie používateľov, ich preferencie a interakcie s obsahom. Každá vizualizácia je navrhnutá tak, aby poskytovala hodnotné informácie pre analýzu a rozhodovanie.
+Dashboard obsahuje **`8 vizualizácií`**, ktoré poskytujú základný prehľad o kľúčových metrikách a trendoch týkajúcich sa filmov, používateľov a ich hodnotení. Tieto vizualizácie odpovedajú na dôležité otázky a umožňujú lepšie pochopiť správanie používateľov, ich preferencie a interakcie s obsahom. Každá vizualizácia je navrhnutá tak, aby poskytovala hodnotné informácie pre analýzu a rozhodovanie.
 
 ### **Graf 1: 10 najlepších filmov podľa priemerného hodnotenia a celkového počtu hlasov**
 
