@@ -273,6 +273,41 @@ WHERE duration IS NOT NULL
 GROUP BY FLOOR(duration/30)
 ORDER BY duration_bucket;
 
+-- Analysis by Production Company 
+
+SELECT 
+    m.production_company,
+    COUNT(DISTINCT f.movie_id) as movies_produced,
+    AVG(TRY_TO_DECIMAL(REGEXP_REPLACE(f.worldwide_gross_income, '[$,]', ''), 18, 2)) as avg_revenue,
+    AVG(f.avg_rating) as avg_rating,
+    AVG(f.total_votes) as avg_engagement
+FROM fact_movies f
+JOIN dim_movie m ON f.movie_id = m.movie_id
+WHERE m.production_company IS NOT NULL
+GROUP BY m.production_company
+HAVING COUNT(DISTINCT f.movie_id) >= 3
+ORDER BY avg_revenue DESC
+LIMIT 10;
+
+-- Seasonal Performance Analysis
+
+SELECT 
+    t.month,
+    COUNT(DISTINCT f.movie_id) as releases
+FROM fact_movies f
+JOIN dim_time t ON f.time_id = t.time_id
+GROUP BY t.month;
+
+-- Language market performance
+
+SELECT 
+    m.languages,
+    COUNT(DISTINCT f.movie_id) as movie_count,
+FROM fact_movies f
+JOIN dim_movie m ON f.movie_id = m.movie_id
+WHERE m.languages IS NOT NULL
+GROUP BY m.languages;
+
 
 
 
